@@ -1,40 +1,7 @@
-import re
-import joblib
 import sys
 import warnings
-from nltk import download as nltk_download
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
-
-# Text normalization function
-def normalize_text(text):
-    """Normalizes text for machine learning processing.
-
-    Args:
-        str: The text to be normalized.
-
-    Returns:
-        str: The normalized text.
-    """
-
-    # Preprocessing the text
-    text = text.lower()
-
-    text = re.sub(r'[^\w\s]', '', text)
-
-    tokens = word_tokenize(text)
-
-    stop_words = set(stopwords.words('english'))
-    tokens = [word for word in tokens if word not in stop_words]
-
-    stemmer = PorterStemmer()
-    tokens = [stemmer.stem(word) for word in tokens]
-
-    normalized_text = ' '.join(tokens)
-
-    return normalized_text
-
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 def main():
     """Runs the text classification task from command line arguments.
@@ -45,6 +12,7 @@ def main():
         SystemExit: If an incorrect number of arguments is provided or the file is not found.
     """
     warnings.filterwarnings('ignore', category=UserWarning)
+
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <text_string>")
         sys.exit(1)
@@ -52,25 +20,33 @@ def main():
     # Get the text string from the argument
     text_string = sys.argv[1]
 
-    # Preprocess the text
-    new_text = normalize_text(text_string)
+    # Load tokenizer from local path
+    tokenizer = AutoTokenizer.from_pretrained("./local_model/")
 
-    # Convert the text into a list (single sample)
-    new_text_list = [new_text]
+    # Load model from local path
+    model = AutoModelForSequenceClassification.from_pretrained(
+        "./local_model/",  # Directory containing the model and config.json
+        trust_remote_code=True  # Enable this if the model uses custom layers
+    )
 
-    # Load the saved model using joblib
-    loaded_pipeline = joblib.load('./.github/workflows/mergeable-predicter/my_model.pkl')
+    # Tokenize input
+    inputs = tokenizer(text_string, return_tensors="pt", truncation=True, padding=True)
 
-    # Use the loaded pipeline to predict the class label
-    prediction = loaded_pipeline.predict(new_text_list)[0]
-    
-    # print(prediction)
-    # return prediction
-    if prediction == "Merged":
+    # Get model predictions
+    outputs = model(**inputs)
+    logits = outputs.logits
+
+    # Convert logits to probabilities
+    probs = torch.softmax(logits, dim=-1)
+
+    # Get the predicted class
+    predicted_class = torch.argmax(probs).item()
+
+    # Output prediction
+    if predicted_class == 1:  # Assuming "1" corresponds to "Merged"
         print("True")
     else:
         print("False")
-
 
 if __name__ == "__main__":
     main()
