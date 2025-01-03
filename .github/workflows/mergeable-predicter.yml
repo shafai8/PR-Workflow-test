@@ -1,0 +1,45 @@
+name: Predict if mergeable or not
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+jobs:
+  predict:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -r ./.github/workflows/mergeable-predicter/requirements.txt
+      - run: python ./.github/workflows/mergeable-predicter/setup.py
+
+      - name: Check mergeability
+        id: predicter
+        run: |
+          mergeable=$(python ./.github/workflows/mergeable-predicter/classifier.py "${{ github.event.pull_request.body }}")
+          echo "mergeable=$mergeable" >> $GITHUB_OUTPUT
+
+      - name: Remove 'mergeable' & 'not-mergeable' labels
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          labels: |
+            mergeable
+            not-mergeable
+
+      - name: If mergeable
+        if: ${{ startsWith(steps.predicter.outputs.mergeable, 'True') }}
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: mergeable
+
+      - name: If not mergeable
+        if: ${{ startsWith(steps.predicter.outputs.mergeable, 'False') }}
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          labels: not-mergeable
