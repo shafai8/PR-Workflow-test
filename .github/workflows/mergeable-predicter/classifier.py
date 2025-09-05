@@ -1,6 +1,10 @@
+# test
 import sys
+
 import warnings
+
 import torch
+
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 def main():
@@ -50,3 +54,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
