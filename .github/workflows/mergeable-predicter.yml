@@ -11,19 +11,45 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
       - uses: actions/checkout@v3
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-      - run: pip install -r ./.github/workflows/mergeable-predicter/requirements.txt
-      - run: python ./.github/workflows/mergeable-predicter/setup.py
 
-      - name: Check mergeability
+      - run: pip install boto3 botocore
+
+      - name: Check mergeability via SageMaker API
         id: predicter
+        env:
+          ENDPOINT_NAME: pr-classifier-endpoint-v2
         run: |
-          mergeable=$(python ./.github/workflows/mergeable-predicter/classifier.py "${{ github.event.pull_request.body }}")
-          echo "mergeable=$mergeable" >> $GITHUB_OUTPUT
+          import boto3, json, os
+          from botocore.config import Config
+
+          config = Config(read_timeout=300, connect_timeout=60)
+          client = boto3.client("sagemaker-runtime", region_name="eu-north-1", config=config)
+
+          payload = {"text": "${{ github.event.pull_request.body }}"}
+          response = client.invoke_endpoint(
+              EndpointName=os.environ["ENDPOINT_NAME"],
+              ContentType="application/json",
+              Body=json.dumps(payload)
+          )
+          result = json.loads(response["Body"].read().decode("utf-8"))
+          mergeable = result.get("prediction")
+          print("mergeable:", mergeable)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as gh_out:
+              gh_out.write(f"mergeable={mergeable}\n")
 
       - name: Remove 'mergeable' & 'not-mergeable' labels
         uses: actions-ecosystem/action-remove-labels@v1
