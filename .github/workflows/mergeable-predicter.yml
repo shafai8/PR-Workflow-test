@@ -27,7 +27,7 @@ jobs:
 
       - run: pip install boto3 botocore
 
-      - name: Check mergeability via SageMaker API
+            - name: Check mergeability via SageMaker API
         id: predicter
         env:
           ENDPOINT_NAME: pr-classifier-endpoint-v2
@@ -50,6 +50,8 @@ jobs:
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as gh_out:
               gh_out.write(f"mergeable={mergeable}\n")
+        shell: python
+
 
       - name: Remove 'mergeable' & 'not-mergeable' labels
         uses: actions-ecosystem/action-remove-labels@v1
